@@ -1,8 +1,6 @@
-#include <chrono>
 #include <iostream>
 #include <math.h>
 #include <memory>
-#include <random>
 #include <vector>
 #include <optional>
 #include <cstdlib>
@@ -256,15 +254,6 @@ inline Vec3 random_unit_vector() {
     }
 }
 
-inline Vec3 random_unit_vector_on_hemisphere(const Vec3 &normal) {
-    auto u = random_unit_vector();
-    if (u.dot(normal) > 0) {
-        return u;
-    } else {
-        return -u;
-    }
-}
-
 Vec3 calc_ray_color(const Ray &r, const Hittable &world, int depth) {
     if (depth == 0) {
         return {0, 0, 0};
@@ -272,11 +261,10 @@ Vec3 calc_ray_color(const Ray &r, const Hittable &world, int depth) {
 
     auto rec = world.hit(r, {0.001, INF}); // Fix shadow acne by ignoring too small a time
     if (rec.has_value()) {
-        /*auto &n = rec->normal;*/
-        /*return Vec3(n.x() + 1, n.y() + 1, n.z() + 1) * 0.5;*/
-        /*auto dir = random_unit_vector_on_hemisphere(rec->normal);*/
-        auto dir = rec->normal + random_unit_vector();
         auto scatter_rec = rec->mat->scatter(r, *rec);
+        if (!scatter_rec.has_value()) {
+            return {0, 0, 0};
+        }
         return calc_ray_color(scatter_rec->ray, world, depth - 1) * scatter_rec->attenuation;
     }
 
@@ -286,6 +274,21 @@ Vec3 calc_ray_color(const Ray &r, const Hittable &world, int depth) {
     return Vec3{1.0, 1.0, 1.0} * (1.0-a) + Vec3{0.5, 0.7, 1.0} * a;
 }
 
+class Metal : public Material {
+public:
+    Vec3 albedo;
+    double fuse;
+    Metal(Vec3 &&albedo, double fuse): albedo(albedo), fuse(fuse) {}
+    optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const override {
+        auto fuse_v = random_unit_vector() * this->fuse;
+        auto dir = reflect(ray.dir, rec.normal);
+        dir = dir / dir.length() + fuse_v;
+        if (dir.dot(rec.normal) > 0) {
+            return {{this->albedo, Ray(rec.point, dir)}};
+        }
+        return {};
+    }
+};
 class Lambertian : public Material {
 public:
     Vec3 albedo;
@@ -328,10 +331,15 @@ int main() {
     auto pixel000_loc = viewport_upper_left + (pixel_delta_u + pixel_delta_v) * 0.5;
 
     // World
-    auto defuse = make_shared<Lambertian>(Vec3{0.5, 0.5, 0.5});
+    auto mat_ground = make_shared<Lambertian>(Vec3{0.8, 0.8, 0});
+    auto mat_center = make_shared<Lambertian>(Vec3{0.1, 0.2, 0.5});
+    auto mat_left = make_shared<Metal>(Vec3(0.8, 0.8, 0.8), 0.3);
+    auto mat_right = make_shared<Metal>(Vec3(0.8, 0.6, 0.2), 1);
     HittableList hit_list;
-    hit_list.add(make_shared<Sphere>(Vec3{0, 0, -1}, 0.5, defuse));
-    hit_list.add(make_shared<Sphere>(Vec3{0, -100.5, -1}, 100, defuse));
+    hit_list.add(make_shared<Sphere>(Vec3{0, -100.5, -1}, 100, mat_ground));
+    hit_list.add(make_shared<Sphere>(Vec3{0, 0, -1.2}, 0.5, mat_center));
+    hit_list.add(make_shared<Sphere>(Vec3{-1, 0, -1}, 0.5, mat_left));
+    hit_list.add(make_shared<Sphere>(Vec3{1, 0, -1}, 0.5, mat_right));
 
     // Render
     for (int j = 0; j < height; j++) {
