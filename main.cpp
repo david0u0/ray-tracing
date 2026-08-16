@@ -13,6 +13,13 @@ const double samp_scale = 1.0 / samp_size;
 
 using namespace std;
 
+inline double linear_to_gamma(double linear_component) {
+    if (linear_component > 0) {
+        return sqrt(linear_component);
+    }
+    return 0;
+}
+
 struct Interval {
     double min;
     double max;
@@ -193,9 +200,9 @@ public:
 };
 
 void write_color(Vec3 &&color) {
-    auto r = color.x();
-    auto g = color.y();
-    auto b = color.z();
+    auto r = linear_to_gamma(color.x());
+    auto g = linear_to_gamma(color.y());
+    auto b = linear_to_gamma(color.z());
 
     static const Interval intensity{0.000, 0.999};
     int ri = int(255.999 * intensity.clamp(r));
