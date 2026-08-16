@@ -7,13 +7,35 @@
 
 #define INF 999999
 
-const int samp_size = 10;
+const int max_depth = 10;
+const int samp_size = 20;
 const double samp_scale = 1.0 / samp_size;
 
 using namespace std;
 
-double rand_double() {
-    return std::rand() / (RAND_MAX + 1.0);
+struct Interval {
+    double min;
+    double max;
+    bool surrounds(double target) const {
+        return target > min && target < max;
+    }
+    double clamp(double target) const {
+        if (target < min) {
+            return min;
+        }
+        if (target > max) {
+            return max;
+        }
+        return target;
+    }
+};
+
+double rand_double(optional<Interval> i) {
+    auto r = rand() / (RAND_MAX + 1.0);
+    if (!i.has_value()) {
+        return r;
+    }
+    return i->min + (i->max - i->min) * r;
 }
 
 class Vec3 {
@@ -70,9 +92,16 @@ public:
             + e[2] * v.e[2];
     }
 
+    double length_squared() const {
+        return x() * x() + y() * y() + z() * z();
+    }
+
     double length() const {
-        double t = x() * x() + y() * y() + z() * z();
-        return sqrt(t);
+        return sqrt(length_squared());
+    }
+
+    static Vec3 random(optional<Interval> i) {
+        return Vec3(rand_double(i), rand_double(i), rand_double(i));
     }
 };
 
@@ -84,23 +113,6 @@ public:
     Ray(const Vec3 &orig, const Vec3 &dir): orig(orig), dir(dir) {}
     Vec3 at(double t) const {
         return orig + dir * t;
-    }
-};
-
-struct Interval {
-    double min;
-    double max;
-    bool surrounds(double target) const {
-        return target > min && target < max;
-    }
-    double clamp(double target) const {
-        if (target < min) {
-            return min;
-        }
-        if (target > max) {
-            return max;
-        }
-        return target;
     }
 };
 
@@ -192,11 +204,38 @@ void write_color(Vec3 &&color) {
     cout << ri << " " << gi << " " << bi << endl;
 }
 
-Vec3 calc_ray_color(const Ray &r, const Hittable &world) {
-    auto rec = world.hit(r, {0, INF});
+inline Vec3 random_unit_vector() {
+    while (true) {
+        auto p = Vec3::random({{-1, 1}});
+        auto lensq = p.length_squared();
+        if (lensq <= 1 && lensq > 1e-160) {
+            // QUESTION: why not just always return? What's wrong with having a distribution of cube instead of sphere?
+            return p / sqrt(lensq);
+        }
+    }
+}
+
+inline Vec3 random_unit_vector_on_hemisphere(const Vec3 &normal) {
+    auto u = random_unit_vector();
+    if (u.dot(normal) > 0) {
+        return u;
+    } else {
+        return -u;
+    }
+}
+
+Vec3 calc_ray_color(const Ray &r, const Hittable &world, int depth) {
+    if (depth == 0) {
+        return {0, 0, 0};
+    }
+
+    auto rec = world.hit(r, {0.001, INF}); // Fix shadow acne by ignoring too small a time
     if (rec.has_value()) {
-        auto &n = rec->normal;
-        return Vec3(n.x() + 1, n.y() + 1, n.z() + 1) * 0.5;
+        /*auto &n = rec->normal;*/
+        /*return Vec3(n.x() + 1, n.y() + 1, n.z() + 1) * 0.5;*/
+        /*auto dir = random_unit_vector_on_hemisphere(rec->normal);*/
+        auto dir = rec->normal + random_unit_vector();
+        return calc_ray_color(Ray(rec->point, dir), world, depth - 1) * 0.5;
     }
 
     Vec3 dir = r.dir;
@@ -242,12 +281,12 @@ int main() {
         for (int i = 0; i < width; i++) {
             Vec3 color(0, 0, 0);
             for (int _i = 0; _i < samp_size; _i++) {
-                double off_x = rand_double();
-                double off_y = rand_double();
+                double off_x = rand_double({});
+                double off_y = rand_double({});
                 auto pixel_center = pixel000_loc + (pixel_delta_u * (i + off_x)) + (pixel_delta_v * (j + off_y));
                 auto ray_dir = pixel_center - camera_center;
                 Ray r(camera_center, ray_dir);
-                color = color + calc_ray_color(r, hit_list);
+                color = color + calc_ray_color(r, hit_list, max_depth);
             }
             write_color(color * samp_scale);
         }
