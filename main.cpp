@@ -1,6 +1,8 @@
+#include <chrono>
 #include <iostream>
 #include <math.h>
 #include <memory>
+#include <random>
 #include <vector>
 #include <optional>
 #include <cstdlib>
@@ -78,6 +80,13 @@ public:
         ret.e[2] -= v.e[2];
         return ret;
     }
+    Vec3 operator*(const Vec3 &v) const {
+        Vec3 ret = *this;
+        ret.e[0] *= v.e[0];
+        ret.e[1] *= v.e[1];
+        ret.e[2] *= v.e[2];
+        return ret;
+    }
     Vec3 operator*(double t) const {
         Vec3 ret = *this;
         ret.e[0] *= t;
@@ -110,7 +119,16 @@ public:
     static Vec3 random(optional<Interval> i) {
         return Vec3(rand_double(i), rand_double(i), rand_double(i));
     }
+
+    bool near_zero() const {
+        auto s = 1e-8;
+        return (fabs(e[0]) < s) && (fabs(e[1]) < s) && (fabs(e[2]) < s);
+    }
 };
+
+inline Vec3 reflect(const Vec3& v, const Vec3& n) {
+    return v - n * 2 * v.dot(n);
+}
 
 class Ray {
 public:
@@ -123,13 +141,28 @@ public:
     }
 };
 
+struct ScatterRecord {
+    Vec3 attenuation;
+    Ray ray;
+};
+
+class HitRecord;
+class Material {
+public:
+    virtual ~Material() = default;
+    virtual optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const {
+        return {};
+    }
+};
+
 struct HitRecord {
     Vec3 point;
     Vec3 normal;
     double t;
     bool front_face;
+    shared_ptr<Material> mat;
 
-    HitRecord(Vec3 point, Vec3 outward_normal, double t): point(point), normal(outward_normal), t(t) {
+    HitRecord(Vec3 point, Vec3 outward_normal, double t, shared_ptr<Material> mat): point(point), normal(outward_normal), t(t), mat(mat) {
         if (point.dot(outward_normal) > 0) {
             this->front_face = false;
             this->normal = -this->normal;
@@ -170,8 +203,9 @@ public:
 class Sphere: public Hittable {
     Vec3 center;
     double radius;
+    shared_ptr<Material> mat;
 public:
-    Sphere(Vec3 center, double radius): center(center), radius(radius) {}
+    Sphere(Vec3 center, double radius, shared_ptr<Material> mat): center(center), radius(radius), mat(mat) {}
     virtual optional<HitRecord> hit(const Ray &ray, Interval t_interval) const override {
         Vec3 oc = center - ray.orig;
         auto a = ray.dir.dot(ray.dir);
@@ -194,7 +228,7 @@ public:
 
         auto p = ray.at(t);
         auto normal = (p - this->center) / this->radius;
-        HitRecord rec{p, normal, t};
+        HitRecord rec{p, normal, t, this->mat};
         return rec;
     }
 };
@@ -242,7 +276,8 @@ Vec3 calc_ray_color(const Ray &r, const Hittable &world, int depth) {
         /*return Vec3(n.x() + 1, n.y() + 1, n.z() + 1) * 0.5;*/
         /*auto dir = random_unit_vector_on_hemisphere(rec->normal);*/
         auto dir = rec->normal + random_unit_vector();
-        return calc_ray_color(Ray(rec->point, dir), world, depth - 1) * 0.5;
+        auto scatter_rec = rec->mat->scatter(r, *rec);
+        return calc_ray_color(scatter_rec->ray, world, depth - 1) * scatter_rec->attenuation;
     }
 
     Vec3 dir = r.dir;
@@ -250,6 +285,19 @@ Vec3 calc_ray_color(const Ray &r, const Hittable &world, int depth) {
     auto a = 0.5 * (unit.y() + 1.0);
     return Vec3{1.0, 1.0, 1.0} * (1.0-a) + Vec3{0.5, 0.7, 1.0} * a;
 }
+
+class Lambertian : public Material {
+public:
+    Vec3 albedo;
+    Lambertian(Vec3 &&albedo): albedo(albedo) {}
+    optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const override {
+        auto dir = rec.normal + random_unit_vector();
+        if (dir.near_zero()) {
+            dir = rec.normal;
+        }
+        return {{this->albedo, Ray(rec.point, dir)}};
+    }
+};
 
 int main() {
     double ratio = 16.0 / 9.0;
@@ -279,11 +327,13 @@ int main() {
     auto viewport_upper_left = camera_center - Vec3(0, 0, focal_length) - viewport_u/2 - viewport_v/2;
     auto pixel000_loc = viewport_upper_left + (pixel_delta_u + pixel_delta_v) * 0.5;
 
-    // Render
+    // World
+    auto defuse = make_shared<Lambertian>(Vec3{0.5, 0.5, 0.5});
     HittableList hit_list;
-    hit_list.add(make_shared<Sphere>(Vec3{0, 0, -1}, 0.5));
-    hit_list.add(make_shared<Sphere>(Vec3{0, -100.5, -1}, 100));
-    double radius = 0.5;
+    hit_list.add(make_shared<Sphere>(Vec3{0, 0, -1}, 0.5, defuse));
+    hit_list.add(make_shared<Sphere>(Vec3{0, -100.5, -1}, 100, defuse));
+
+    // Render
     for (int j = 0; j < height; j++) {
         for (int i = 0; i < width; i++) {
             Vec3 color(0, 0, 0);
