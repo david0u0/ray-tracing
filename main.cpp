@@ -3,10 +3,18 @@
 #include <memory>
 #include <vector>
 #include <optional>
+#include <cstdlib>
 
 #define INF 999999
 
+const int samp_size = 10;
+const double samp_scale = 1.0 / samp_size;
+
 using namespace std;
+
+double rand_double() {
+    return std::rand() / (RAND_MAX + 1.0);
+}
 
 class Vec3 {
 public:
@@ -82,8 +90,17 @@ public:
 struct Interval {
     double min;
     double max;
-    bool surrounds(double target) {
+    bool surrounds(double target) const {
         return target > min && target < max;
+    }
+    double clamp(double target) const {
+        if (target < min) {
+            return min;
+        }
+        if (target > max) {
+            return max;
+        }
+        return target;
     }
 };
 
@@ -163,18 +180,25 @@ public:
     }
 };
 
-void write_color(Vec3 &color) {
+void write_color(Vec3 &&color) {
     auto r = color.x();
     auto g = color.y();
     auto b = color.z();
 
-    int ri = int(255.999 * r);
-    int gi = int(255.999 * g);
-    int bi = int(255.999 * b);
+    static const Interval intensity{0.000, 0.999};
+    int ri = int(255.999 * intensity.clamp(r));
+    int gi = int(255.999 * intensity.clamp(g));
+    int bi = int(255.999 * intensity.clamp(b));
     cout << ri << " " << gi << " " << bi << endl;
 }
 
-Vec3 calc_ray_color(const Ray &r) {
+Vec3 calc_ray_color(const Ray &r, const Hittable &world) {
+    auto rec = world.hit(r, {0, INF});
+    if (rec.has_value()) {
+        auto &n = rec->normal;
+        return Vec3(n.x() + 1, n.y() + 1, n.z() + 1) * 0.5;
+    }
+
     Vec3 dir = r.dir;
     Vec3 unit = dir / dir.length();
     auto a = 0.5 * (unit.y() + 1.0);
@@ -216,20 +240,16 @@ int main() {
     double radius = 0.5;
     for (int j = 0; j < height; j++) {
         for (int i = 0; i < width; i++) {
-            auto pixel_center = pixel000_loc + (pixel_delta_u * i) + (pixel_delta_v * j);
-            auto ray_dir = pixel_center - camera_center;
-            Ray r(camera_center, ray_dir);
-
-            Vec3 color{0, 0, 0};
-            auto rec = hit_list.hit(r, {0, INF});
-            if (rec.has_value()) {
-                auto &n = rec->normal;
-                color = Vec3(n.x() + 1, n.y() + 1, n.z() + 1) * 0.5;
-            } else {
-                color = calc_ray_color(r);
+            Vec3 color(0, 0, 0);
+            for (int _i = 0; _i < samp_size; _i++) {
+                double off_x = rand_double();
+                double off_y = rand_double();
+                auto pixel_center = pixel000_loc + (pixel_delta_u * (i + off_x)) + (pixel_delta_v * (j + off_y));
+                auto ray_dir = pixel_center - camera_center;
+                Ray r(camera_center, ray_dir);
+                color = color + calc_ray_color(r, hit_list);
             }
-            
-            write_color(color);
+            write_color(color * samp_scale);
         }
     }
 }
