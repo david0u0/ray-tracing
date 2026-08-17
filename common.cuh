@@ -120,6 +120,25 @@ public:
         auto s = 1e-8;
         return (fabs(e[0]) < s) && (fabs(e[1]) < s) && (fabs(e[2]) < s);
     }
+
+    CUDA_FUNC() Vec3 to_unit() const {
+        return *this / this->length();
+    }
+    // `this` as norm
+    CUDA_FUNC() inline Vec3 reflect(const Vec3& v) const {
+        auto &n = *this;
+        return v - n * 2 * v.dot(n);
+    }
+
+    // `this` as unit norm, and v as unit vector
+    CUDA_FUNC() inline Vec3 refract(const Vec3& v, double eta_ratio) const {
+        auto &n = *this;
+        auto cos_theta = fmin(-n.dot(v), 1.0);
+        auto sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+        auto perp = (v + n * cos_theta) * eta_ratio;
+        auto para = n * (-sqrt(fabs(1.0 - perp.length_squared())));
+        return perp + para;
+    }
 };
 
 void write_color(Vec3 &&color) {
