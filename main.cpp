@@ -1,3 +1,5 @@
+#include "common.cuh"
+
 #include <iostream>
 #include <math.h>
 #include <memory>
@@ -5,124 +7,12 @@
 #include <optional>
 #include <cstdlib>
 
+
 #define INF 999999
 
-const int max_depth = 10;
-const int samp_size = 20;
+const int max_depth = 20;
+const int samp_size = 10;
 const double samp_scale = 1.0 / samp_size;
-
-using namespace std;
-
-inline double linear_to_gamma(double linear_component) {
-    if (linear_component > 0) {
-        return sqrt(linear_component);
-    }
-    return 0;
-}
-
-struct Interval {
-    double min;
-    double max;
-    bool surrounds(double target) const {
-        return target > min && target < max;
-    }
-    double clamp(double target) const {
-        if (target < min) {
-            return min;
-        }
-        if (target > max) {
-            return max;
-        }
-        return target;
-    }
-};
-
-double rand_double(optional<Interval> i) {
-    auto r = rand() / (RAND_MAX + 1.0);
-    if (!i.has_value()) {
-        return r;
-    }
-    return i->min + (i->max - i->min) * r;
-}
-
-class Vec3 {
-public:
-    double e[3];
-
-    Vec3(double e0, double e1, double e2) : e{e0, e1, e2} {}
-    double x() const {
-        return e[0];
-    }
-    double y() const {
-        return e[1];
-    }
-    double z() const {
-        return e[2];
-    }
-
-    Vec3 operator-() const {
-        return {-x(), -y(), -z()};
-    }
-
-    Vec3 operator+(const Vec3 &v) const {
-        Vec3 ret = *this;
-        ret.e[0] += v.e[0];
-        ret.e[1] += v.e[1];
-        ret.e[2] += v.e[2];
-        return ret;
-    }
-    Vec3 operator-(const Vec3 &v) const {
-        Vec3 ret = *this;
-        ret.e[0] -= v.e[0];
-        ret.e[1] -= v.e[1];
-        ret.e[2] -= v.e[2];
-        return ret;
-    }
-    Vec3 operator*(const Vec3 &v) const {
-        Vec3 ret = *this;
-        ret.e[0] *= v.e[0];
-        ret.e[1] *= v.e[1];
-        ret.e[2] *= v.e[2];
-        return ret;
-    }
-    Vec3 operator*(double t) const {
-        Vec3 ret = *this;
-        ret.e[0] *= t;
-        ret.e[1] *= t;
-        ret.e[2] *= t;
-        return ret;
-    }
-    Vec3 operator/(double t) const {
-        Vec3 ret = *this;
-        ret.e[0] /= t;
-        ret.e[1] /= t;
-        ret.e[2] /= t;
-        return ret;
-    }
-
-    double dot(const Vec3 &v) const {
-        return e[0] * v.e[0]
-            + e[1] * v.e[1]
-            + e[2] * v.e[2];
-    }
-
-    double length_squared() const {
-        return x() * x() + y() * y() + z() * z();
-    }
-
-    double length() const {
-        return sqrt(length_squared());
-    }
-
-    static Vec3 random(optional<Interval> i) {
-        return Vec3(rand_double(i), rand_double(i), rand_double(i));
-    }
-
-    bool near_zero() const {
-        auto s = 1e-8;
-        return (fabs(e[0]) < s) && (fabs(e[1]) < s) && (fabs(e[2]) < s);
-    }
-};
 
 inline Vec3 reflect(const Vec3& v, const Vec3& n) {
     return v - n * 2 * v.dot(n);
@@ -231,18 +121,6 @@ public:
     }
 };
 
-void write_color(Vec3 &&color) {
-    auto r = linear_to_gamma(color.x());
-    auto g = linear_to_gamma(color.y());
-    auto b = linear_to_gamma(color.z());
-
-    static const Interval intensity{0.000, 0.999};
-    int ri = int(255.999 * intensity.clamp(r));
-    int gi = int(255.999 * intensity.clamp(g));
-    int bi = int(255.999 * intensity.clamp(b));
-    cout << ri << " " << gi << " " << bi << endl;
-}
-
 inline Vec3 random_unit_vector() {
     while (true) {
         auto p = Vec3::random({{-1, 1}});
@@ -304,7 +182,7 @@ public:
 
 int main() {
     double ratio = 16.0 / 9.0;
-    int width = 400;
+    int width = 1200;
     int height = int(width / ratio);
 
 
@@ -346,8 +224,8 @@ int main() {
         for (int i = 0; i < width; i++) {
             Vec3 color(0, 0, 0);
             for (int _i = 0; _i < samp_size; _i++) {
-                double off_x = rand_double({});
-                double off_y = rand_double({});
+                double off_x = rand_double({}) - 0.5;
+                double off_y = rand_double({}) - 0.5;
                 auto pixel_center = pixel000_loc + (pixel_delta_u * (i + off_x)) + (pixel_delta_v * (j + off_y));
                 auto ray_dir = pixel_center - camera_center;
                 Ray r(camera_center, ray_dir);

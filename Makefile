@@ -1,3 +1,7 @@
 main: main.cpp
-	g++ -O3 main.cpp
+	g++ -std=c++17 main.cpp
+	./a.out > img.ppm
+
+cuda: main_cuda.cu
+	nvcc main_cuda.cu
 	./a.out > img.ppm
