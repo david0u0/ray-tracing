@@ -47,6 +47,7 @@ class Vec3 {
 public:
     double e[3];
 
+    CUDA_FUNC() Vec3() : e{0, 0, 0} {}
     CUDA_FUNC() Vec3(double e0, double e1, double e2) : e{e0, e1, e2} {}
     CUDA_FUNC() double x() const {
         return e[0];
