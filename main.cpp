@@ -10,7 +10,6 @@
 
 #define INF 999999
 
-
 class Ray {
 public:
     Vec3 orig;
@@ -189,7 +188,12 @@ private:
 #include "camera.cuh"
 
 int main() {
-    Camera camera(1200, 16.0 / 9.0);
+    Camera camera({
+        .width = 400,
+        .ratio = 16.0 / 9.0,
+        .virtical_fov = 3.1415926535 / 6,
+        .camera_center = {-2, 2, 1},
+    });
 
     cout << "P3" << endl;
     cout << camera.width << " " << camera.height << endl;
@@ -205,7 +209,7 @@ int main() {
     hit_list.add(make_shared<Sphere>(Vec3{0, -100.5, -1}, 100, mat_ground));
     hit_list.add(make_shared<Sphere>(Vec3{0, 0, -1.2}, 0.5, mat_center));
     hit_list.add(make_shared<Sphere>(Vec3{-1, 0, -1}, 0.5, mat_left));
-    hit_list.add(make_shared<Sphere>(Vec3{-1, 0, -1}, 0.35, mat_bubble));
+    hit_list.add(make_shared<Sphere>(Vec3{-1, 0, -1}, 0.4, mat_bubble));
     hit_list.add(make_shared<Sphere>(Vec3{1, 0, -1}, 0.5, mat_right));
 
     camera.render(hit_list);

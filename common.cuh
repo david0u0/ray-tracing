@@ -104,6 +104,18 @@ public:
             + e[1] * v.e[1]
             + e[2] * v.e[2];
     }
+    CUDA_FUNC() Vec3 cross(const Vec3 &v) const {
+        auto &u = *this;
+        return {
+            u.y() * v.z() - u.z() * v.y(),
+            u.z() * v.x() - u.x() * v.z(),
+            u.x() * v.y() - u.y() * v.x(),
+        };
+    }
+
+    void debug() const {
+        clog << x() << " " << y() << " " << z() << endl;
+    }
 
     CUDA_FUNC() double length_squared() const {
         return x() * x() + y() * y() + z() * z();

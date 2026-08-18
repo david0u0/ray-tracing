@@ -1,33 +1,50 @@
+struct CamConfig {
+    int width;
+    double ratio;
+    double virtical_fov = 3.1415926535 / 2; // field of view;
+    Vec3 look_at = {0, 0, -1};
+    Vec3 vup = {0, 1, 0};
+    Vec3 camera_center = {0, 0, 0};
+    int max_depth = 20;
+    int samp_size = 20;
+};
+
 class Camera {
+private:
     Vec3 pixel00_loc;
     Vec3 pixel_delta_u;
     Vec3 pixel_delta_v;
-    Vec3 camera_center;
-    int max_depth = 20;
-    int samp_size = 20;
-    double samp_scale = 1.0 / samp_size;
+    int max_depth;
+    int samp_size;
+    double samp_scale;
+    Vec3 camera_center = {0, 0, 0};
 
 public:
     int width;
     int height;
-    double virtical_fov = 3.1415926535 / 2; // field of view;
 
-    Camera(int width, double ratio): width(width) {
-        height = int(width / ratio);
+    Camera(CamConfig conf): width(conf.width), camera_center(conf.camera_center) {
+        samp_size = conf.samp_size;
+        samp_scale = 1.0 / samp_size;
+        max_depth = conf.max_depth;
+        height = int(width / conf.ratio);
 
-        auto h = tan(virtical_fov/2);
-        double focal_length = 1.0;
+        auto w = camera_center - conf.look_at;
+        double focal_length = w.length();
+        w = w / focal_length;
+        auto u = conf.vup.cross(w).to_unit();
+        auto v = w.cross(u);
+
+        auto h = tan(conf.virtical_fov/2);
         double viewport_height = 2.0 * h * focal_length;
         double viewport_width = viewport_height * (double(width) / height);
-        camera_center = Vec3(0, 0, 0);
-
-        auto viewport_u = Vec3(viewport_width, 0, 0);
-        auto viewport_v = Vec3(0, -viewport_height, 0);
+        auto viewport_u = u * viewport_width;
+        auto viewport_v = -v * viewport_height;
 
         pixel_delta_u = viewport_u / width;
         pixel_delta_v = viewport_v / height;
 
-        auto viewport_upper_left = camera_center - Vec3(0, 0, focal_length) - viewport_u/2 - viewport_v/2;
+        auto viewport_upper_left = conf.look_at - viewport_u/2 - viewport_v/2;
         pixel00_loc = viewport_upper_left + (pixel_delta_u + pixel_delta_v) * 0.5;
     }
 
