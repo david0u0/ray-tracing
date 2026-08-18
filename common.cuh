@@ -1,3 +1,6 @@
+#ifndef COMMON_H
+#define COMMON_H
+
 #include <math.h>
 #include <cstdlib>
 #include <iostream>
@@ -166,3 +169,15 @@ void write_color(Vec3 &&color) {
     cout << ri << " " << gi << " " << bi << endl;
 }
 
+inline Vec3 random_unit_vector() {
+    while (true) {
+        auto p = Vec3::random({{-1, 1}});
+        auto lensq = p.length_squared();
+        if (lensq <= 1 && lensq > 1e-160) {
+            // QUESTION: why not just always return? What's wrong with having a distribution of cube instead of sphere?
+            return p / sqrt(lensq);
+        }
+    }
+}
+
+#endif

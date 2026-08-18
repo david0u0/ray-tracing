@@ -1,3 +1,11 @@
+#ifndef CAMERA_H
+#define CAMERA_H
+
+#include "common.cuh"
+#include "world.cuh"
+
+#define INF 999999
+
 struct CamConfig {
     int width;
     double ratio;
@@ -86,3 +94,5 @@ public:
         return Vec3{1.0, 1.0, 1.0} * (1.0-a) + Vec3{0.5, 0.7, 1.0} * a;
     }
 };
+
+#endif
