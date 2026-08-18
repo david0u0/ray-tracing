@@ -8,11 +8,15 @@
 #include <cstdlib>
 
 int main() {
-    Camera camera({
+    Camera camera(CamConfig{
         .width = 400,
         .ratio = 16.0 / 9.0,
-        .virtical_fov = 3.1415926535 / 6,
+        .virtical_fov = 3.1415926535 / 9,
         .camera_center = {-2, 2, 1},
+        .samp_size = 100,
+
+        .focus_dist = 3.4,
+        .defocus_angle = 3.1415926 / 18,
     });
 
     cout << "P3" << endl;

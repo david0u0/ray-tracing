@@ -184,4 +184,12 @@ CUDA_FUNC() Vec3 operator*(double t, const Vec3 v) {
     return { v.x() * t, v.y() * t, v.z() * t };
 }
 
+inline Vec3 random_in_unit_disk() {
+    while (true) {
+        auto p = Vec3(rand_double({{-1,1}}), rand_double({{-1,1}}), 0);
+        if (p.length_squared() < 1)
+            return p;
+    }
+}
+
 #endif
