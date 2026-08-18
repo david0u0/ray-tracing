@@ -12,8 +12,8 @@ public:
     Vec3 orig;
     Vec3 dir;
 
-    Ray(const Vec3 &orig, const Vec3 &dir): orig(orig), dir(dir) {}
-    Vec3 at(double t) const {
+    CUDA_FUNC() Ray(const Vec3 &orig, const Vec3 &dir): orig(orig), dir(dir) {}
+    CUDA_FUNC() Vec3 at(double t) const {
         return orig + dir * t;
     }
 };

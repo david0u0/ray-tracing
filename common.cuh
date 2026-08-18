@@ -180,4 +180,8 @@ inline Vec3 random_unit_vector() {
     }
 }
 
+CUDA_FUNC() Vec3 operator*(double t, const Vec3 v) {
+    return { v.x() * t, v.y() * t, v.z() * t };
+}
+
 #endif
