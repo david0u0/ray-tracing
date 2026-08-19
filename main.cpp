@@ -4,7 +4,6 @@
 
 #include <iostream>
 #include <math.h>
-#include <memory>
 #include <cstdlib>
 
 int main() {
@@ -25,9 +24,9 @@ int main() {
     cout << 255 << endl;
 
     // World
-    HittableList hit_list;
-    auto mat_ground = make_shared<Lambertian>(Vec3{0.5, 0.5, 0.5});
-    hit_list.add(make_shared<Sphere>(Vec3{0, -1000, 0}, 1000, mat_ground));
+    HittableList hit_list(22 * 22 + 100);
+    auto mat_ground = new Lambertian(Vec3{0.5, 0.5, 0.5});
+    hit_list.add(new Sphere(Vec3{0, -1000, 0}, 1000, mat_ground));
 
     for (int i = -11; i < 11; i++) {
         for (int j = -11; j < 11; j++) {
@@ -37,31 +36,31 @@ int main() {
             }
 
             double rand_mat = rand_double({});
-            shared_ptr<Material> mat;
+            Material* mat;
             Vec3 albedo = {rand_double({}), rand_double({}), rand_double({})};
             if (rand_mat < 0.6) {
                 // diffuse
-                mat = make_shared<Lambertian>(std::move(albedo));
+                mat = new Lambertian(std::move(albedo));
             } else if (rand_mat < 0.85) {
                 // metal
                 auto fuse = rand_double({{0, 0.5}});
-                mat = make_shared<Metal>(std::move(albedo), fuse);
+                mat = new Metal(std::move(albedo), fuse);
             } else {
                 // glass
-                mat = make_shared<Dielectric>(Vec3{0.9, 0.9, 0.9}, 1.5);
+                mat = new Dielectric(Vec3{0.9, 0.9, 0.9}, 1.5);
             }
-            hit_list.add(make_shared<Sphere>(center, 0.2, mat));
+            hit_list.add(new Sphere(center, 0.2, mat));
         }
     }
 
-    auto material1 = make_shared<Dielectric>(Vec3{1, 1, 1}, 1.5);
-    hit_list.add(make_shared<Sphere>(Vec3{0, 1, 0}, 1.0, material1));
+    auto material1 = new Dielectric(Vec3{1, 1, 1}, 1.5);
+    hit_list.add(new Sphere(Vec3{0, 1, 0}, 1.0, material1));
 
-    auto material2 = make_shared<Lambertian>(Vec3{0.4, 0.2, 0.1});
-    hit_list.add(make_shared<Sphere>(Vec3{-4, 1, 0}, 1.0, material2));
+    auto material2 = new Lambertian(Vec3{0.4, 0.2, 0.1});
+    hit_list.add(new Sphere(Vec3{-4, 1, 0}, 1.0, material2));
 
-    auto material3 = make_shared<Metal>(Vec3{0.7, 0.6, 0.5}, 0.0);
-    hit_list.add(make_shared<Sphere>(Vec3{4, 1, 0}, 1.0, material3));
+    auto material3 = new Metal(Vec3{0.7, 0.6, 0.5}, 0.0);
+    hit_list.add(new Sphere(Vec3{4, 1, 0}, 1.0, material3));
 
     camera.render(hit_list);
 }

@@ -4,7 +4,6 @@
 #include "common.cuh"
 
 #include <vector>
-#include <optional>
 #include <memory>
 
 class Ray {
@@ -27,7 +26,7 @@ class HitRecord;
 class Material {
 public:
     virtual ~Material() = default;
-    virtual optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const {
+    CUDA_FUNC() virtual my_optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const {
         return {};
     }
 };
@@ -37,9 +36,9 @@ struct HitRecord {
     Vec3 normal;
     double t;
     bool front_face;
-    shared_ptr<Material> mat;
+    Material *mat;
 
-    HitRecord(const Vec3 &ray_dir, Vec3 point, Vec3 outward_normal, double t, shared_ptr<Material> mat): point(point), normal(outward_normal), t(t), mat(mat) {
+    CUDA_FUNC() HitRecord(const Vec3 &ray_dir, Vec3 point, Vec3 outward_normal, double t, Material *mat): point(point), normal(outward_normal), t(t), mat(mat) {
         if (ray_dir.dot(outward_normal) > 0) {
             this->front_face = false;
             this->normal = -this->normal;
@@ -52,19 +51,26 @@ struct HitRecord {
 class Hittable {
 public:
     virtual ~Hittable() = default;
-    virtual optional<HitRecord> hit(const Ray &ray, Interval t_interval) const = 0;
+    CUDA_FUNC() virtual my_optional<HitRecord> hit(const Ray &ray, Interval t_interval) const = 0;
 };
 
-class HittableList: public Hittable {
-    vector<shared_ptr<Hittable>> list;
+class HittableList {
 public:
-    void add(shared_ptr<Hittable> ptr) {
-        this->list.push_back(ptr);
+    Hittable **list; // TODO: delete
+    int tail;
+
+    CUDA_FUNC() HittableList(int size) {
+        this->list = new Hittable*[size];
+        this->tail = 0;
+    }
+    CUDA_FUNC() void add(Hittable* ptr) {
+        this->list[this->tail++] = ptr;
 
     }
-    optional<HitRecord> hit(const Ray &ray, Interval t_interval) const override {
-        optional<HitRecord> ret = {};
-        for (auto &obj : this->list) {
+    CUDA_FUNC() my_optional<HitRecord> hit(const Ray &ray, Interval t_interval) const {
+        my_optional<HitRecord> ret = {};
+        for (int i = 0; i < tail; i++) {
+            auto &obj = list[i];
             auto rec = obj->hit(ray, t_interval);
             if (!rec.has_value()) {
                 continue;
@@ -80,10 +86,10 @@ public:
 class Sphere: public Hittable {
     Vec3 center;
     double radius;
-    shared_ptr<Material> mat;
+    Material *mat; // TODO: delete
 public:
-    Sphere(Vec3 center, double radius, shared_ptr<Material> mat): center(center), radius(radius), mat(mat) {}
-    virtual optional<HitRecord> hit(const Ray &ray, Interval t_interval) const override {
+    CUDA_FUNC() Sphere(Vec3 center, double radius, Material *mat): center(center), radius(radius), mat(mat) {}
+    CUDA_FUNC() virtual my_optional<HitRecord> hit(const Ray &ray, Interval t_interval) const override {
         Vec3 oc = center - ray.orig;
         auto a = ray.dir.dot(ray.dir);
         /*auto b = ray.dir.dot(oc) * -2;*/
@@ -115,7 +121,7 @@ public:
     Vec3 albedo;
     double fuse;
     Metal(Vec3 &&albedo, double fuse): albedo(albedo), fuse(fuse) {}
-    optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const override {
+    CUDA_FUNC() my_optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const override {
         auto fuse_v = random_unit_vector() * this->fuse;
         auto dir = rec.normal.reflect(ray.dir);
         dir = dir / dir.length() + fuse_v;
@@ -128,8 +134,8 @@ public:
 class Lambertian : public Material {
 public:
     Vec3 albedo;
-    Lambertian(Vec3 &&albedo): albedo(albedo) {}
-    optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const override {
+    CUDA_FUNC() Lambertian(Vec3 &&albedo): albedo(albedo) {}
+    CUDA_FUNC() my_optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const override {
         auto dir = rec.normal + random_unit_vector();
         if (dir.near_zero()) {
             dir = rec.normal;
@@ -146,7 +152,7 @@ public:
         refraction_index_inverse = 1.0 / refraction_index;
     }
 
-    optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const override {
+    CUDA_FUNC() my_optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const override {
         double ri = rec.front_face ? refraction_index_inverse : refraction_index;
 
         auto v = ray.dir.to_unit();

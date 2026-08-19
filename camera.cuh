@@ -90,7 +90,7 @@ public:
         }
     }
 
-    Vec3 calc_ray_color(const Ray &r, const Hittable &world, int depth) const {
+    Vec3 calc_ray_color(const Ray &r, const HittableList &world, int depth) const {
         if (depth == 0) {
             return {0, 0, 0};
         }

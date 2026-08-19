@@ -2,6 +2,7 @@
 
 #include "common.cuh"
 #include "world.cuh"
+#include "camera.cuh"
 
 #include <iostream>
 
@@ -18,14 +19,28 @@ void check_cuda(cudaError_t result, char const *const func, const char *const fi
     }
 }
 
-__device__ Vec3 calc_ray_color(const Ray &r) {
-    Vec3 dir = r.dir;
-    Vec3 unit = dir / dir.length();
-    auto a = 0.5 * (unit.y() + 1.0);
-    return (1.0 - a) * Vec3{1.0, 1.0, 1.0} + Vec3{0.5, 0.7, 1.0} * a;
+__device__ Vec3 calc_ray_color(const Ray &r, const HittableList &world) {
+    Ray cur_ray = r;
+    Vec3 cur_color = {1, 1, 1};
+
+    for (int i = 0; i < 30; i++) {
+        auto rec = world.hit(r, {0, INF});
+        if (rec.has_value()) {
+            // auto scatter_rec = rec->mat->scatter(r, *rec);
+            return {1, 0, 0};
+        }
+
+        Vec3 dir = r.dir;
+        Vec3 unit = dir / dir.length();
+        auto a = 0.5 * (unit.y() + 1.0);
+        auto bg_color = (1.0 - a) * Vec3{1.0, 1.0, 1.0} + Vec3{0.5, 0.7, 1.0} * a;
+        return cur_color * bg_color;
+    }
+
+    return {0, 0, 0};
 }
 
-__global__ void render(Vec3 *fb, int max_x, int max_y, Vec3 pixel000_loc, Vec3 pixel_delta_u, Vec3 pixel_delta_v, Vec3 camera_center) {
+__global__ void render(Vec3 *fb, int max_x, int max_y, Vec3 pixel000_loc, Vec3 pixel_delta_u, Vec3 pixel_delta_v, Vec3 camera_center, HittableList* world) {
     int i = threadIdx.x + blockIdx.x * blockDim.x;
     int j = threadIdx.y + blockIdx.y * blockDim.y;
     if (i >= max_x || j >= max_y) {
@@ -36,7 +51,19 @@ __global__ void render(Vec3 *fb, int max_x, int max_y, Vec3 pixel000_loc, Vec3 p
     auto ray_dir = pixel_center - camera_center;
     Ray r(camera_center, ray_dir);
     int idx = j * max_x + i;
-    fb[idx] = calc_ray_color(r);
+    fb[idx] = calc_ray_color(r, *world);
+}
+
+__global__ void init_hit_list(HittableList *world) {
+    if (threadIdx.x != 0 && blockIdx.x != 0) {
+        return;
+    }
+
+    *world = HittableList(2);
+    auto mat_center = new Lambertian(Vec3{0.5, 0.5, 0.5});
+    auto mat_ground = new Lambertian(Vec3{0.5, 0.5, 0.5});
+    world->add(new Sphere(Vec3{0, 0, -1}, 0.5, mat_center));
+    world->add(new Sphere(Vec3{0, -100.5, -1}, 100, mat_ground));
 }
 
 int main() {
@@ -45,9 +72,13 @@ int main() {
     int num_pixels = width * height;
     size_t fb_size = num_pixels * sizeof(Vec3);
 
-    // allocate FB
     Vec3 *fb;
     checkCudaErrors(cudaMallocManaged((void **)&fb, fb_size));
+
+    HittableList *world;
+    checkCudaErrors(cudaMallocManaged((void **)&world, sizeof(HittableList)));
+    init_hit_list<<<1, 1>>>(world);
+    checkCudaErrors(cudaGetLastError());
 
     // Camera
     double focal_length = 1.0;
@@ -71,14 +102,14 @@ int main() {
     int tx = 8, ty = 8;
     dim3 blocks(width/ty + 1, height/ty + 1);
     dim3 threads(tx, ty);
-    render<<<blocks, threads>>>(fb, width, height, pixel000_loc, pixel_delta_u, pixel_delta_v, camera_center);
+    render<<<blocks, threads>>>(fb, width, height, pixel000_loc, pixel_delta_u, pixel_delta_v, camera_center, world);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
     cout << "P3" << endl;
     cout << width << " " << height << endl;
     cout << 255 << endl;
-    for (int j = height - 1; j >= 0; j--) {
+    for (int j = 0; j < height; j++) {
         for (int i = 0; i < width; i++) {
             int idx = j * width + i;
             write_color(std::move(fb[idx]));

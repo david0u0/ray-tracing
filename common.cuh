@@ -4,7 +4,6 @@
 #include <math.h>
 #include <cstdlib>
 #include <iostream>
-#include <optional>
 
 using namespace std;
 
@@ -14,13 +13,24 @@ using namespace std;
 #define CUDA_FUNC()
 #endif
 
+
+#ifdef CUDA
+#include <cuda/std/optional>
+template<typename T>
+using my_optional = cuda::std::optional<T>;
+#else
+#include <optional>
+template<typename T>
+using my_optional = optional<T>;
+#endif
+
 struct Interval {
     double min;
     double max;
-    bool surrounds(double target) const {
+    CUDA_FUNC() bool surrounds(double target) const {
         return target > min && target < max;
     }
-    double clamp(double target) const {
+    CUDA_FUNC() double clamp(double target) const {
         if (target < min) {
             return min;
         }
@@ -31,14 +41,14 @@ struct Interval {
     }
 };
 
-inline double linear_to_gamma(double linear_component) {
+CUDA_FUNC() inline double linear_to_gamma(double linear_component) {
     if (linear_component > 0) {
         return sqrt(linear_component);
     }
     return 0;
 }
 
-double rand_double(optional<Interval> i) {
+CUDA_FUNC() double rand_double(my_optional<Interval> i) {
     auto r = rand() / (RAND_MAX + 1.0);
     if (!i.has_value()) {
         return r;
@@ -128,7 +138,7 @@ public:
         return sqrt(length_squared());
     }
 
-    CUDA_FUNC() static Vec3 random(optional<Interval> i) {
+    CUDA_FUNC() static Vec3 random(my_optional<Interval> i) {
         return Vec3(rand_double(i), rand_double(i), rand_double(i));
     }
 
@@ -169,7 +179,7 @@ void write_color(Vec3 &&color) {
     cout << ri << " " << gi << " " << bi << endl;
 }
 
-inline Vec3 random_unit_vector() {
+CUDA_FUNC() inline Vec3 random_unit_vector() {
     while (true) {
         auto p = Vec3::random({{-1, 1}});
         auto lensq = p.length_squared();
@@ -184,7 +194,7 @@ CUDA_FUNC() Vec3 operator*(double t, const Vec3 v) {
     return { v.x() * t, v.y() * t, v.z() * t };
 }
 
-inline Vec3 random_in_unit_disk() {
+CUDA_FUNC() inline Vec3 random_in_unit_disk() {
     while (true) {
         auto p = Vec3(rand_double({{-1,1}}), rand_double({{-1,1}}), 0);
         if (p.length_squared() < 1)
