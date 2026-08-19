@@ -30,20 +30,20 @@ int main() {
 
     for (int i = -11; i < 11; i++) {
         for (int j = -11; j < 11; j++) {
-            Vec3 center(i + 0.7*rand_double({}), 0.2, j + 0.7*rand_double({}));
+            Vec3 center(i + 0.7*rand_double({}, nullptr), 0.2, j + 0.7*rand_double({}, nullptr));
             if ((center - Vec3(4, 0.2, 0)).length() < 0.9) {
                 continue;
             }
 
-            double rand_mat = rand_double({});
+            double rand_mat = rand_double({}, nullptr);
             Material* mat;
-            Vec3 albedo = {rand_double({}), rand_double({}), rand_double({})};
+            Vec3 albedo = {rand_double({}, nullptr), rand_double({}, nullptr), rand_double({}, nullptr)};
             if (rand_mat < 0.6) {
                 // diffuse
                 mat = new Lambertian(std::move(albedo));
             } else if (rand_mat < 0.85) {
                 // metal
-                auto fuse = rand_double({{0, 0.5}});
+                auto fuse = rand_double({{0, 0.5}}, nullptr);
                 mat = new Metal(std::move(albedo), fuse);
             } else {
                 // glass

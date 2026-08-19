@@ -26,7 +26,7 @@ class HitRecord;
 class Material {
 public:
     virtual ~Material() = default;
-    CUDA_FUNC() virtual my_optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const {
+    GPU_FUNC() virtual my_optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec, curandState *st) const {
         return {};
     }
 };
@@ -120,9 +120,9 @@ class Metal : public Material {
 public:
     Vec3 albedo;
     double fuse;
-    Metal(Vec3 &&albedo, double fuse): albedo(albedo), fuse(fuse) {}
-    CUDA_FUNC() my_optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const override {
-        auto fuse_v = random_unit_vector() * this->fuse;
+    CUDA_FUNC() Metal(Vec3 &&albedo, double fuse): albedo(albedo), fuse(fuse) {}
+    GPU_FUNC() my_optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec, curandState *st) const override {
+        auto fuse_v = random_unit_vector(st) * this->fuse;
         auto dir = rec.normal.reflect(ray.dir);
         dir = dir / dir.length() + fuse_v;
         if (dir.dot(rec.normal) > 0) {
@@ -135,8 +135,8 @@ class Lambertian : public Material {
 public:
     Vec3 albedo;
     CUDA_FUNC() Lambertian(Vec3 &&albedo): albedo(albedo) {}
-    CUDA_FUNC() my_optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const override {
-        auto dir = rec.normal + random_unit_vector();
+    GPU_FUNC() my_optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec, curandState *st) const override {
+        auto dir = rec.normal + random_unit_vector(st);
         if (dir.near_zero()) {
             dir = rec.normal;
         }
@@ -148,11 +148,11 @@ public:
     Vec3 albedo;
     double refraction_index;
     double refraction_index_inverse;
-    Dielectric(Vec3 &&albedo, double refraction_index): albedo(albedo), refraction_index(refraction_index) {
+    GPU_FUNC() Dielectric(Vec3 &&albedo, double refraction_index): albedo(albedo), refraction_index(refraction_index) {
         refraction_index_inverse = 1.0 / refraction_index;
     }
 
-    CUDA_FUNC() my_optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec) const override {
+    GPU_FUNC() my_optional<ScatterRecord> scatter(const Ray &ray, const HitRecord &rec, curandState *st) const override {
         double ri = rec.front_face ? refraction_index_inverse : refraction_index;
 
         auto v = ray.dir.to_unit();
@@ -160,7 +160,7 @@ public:
         auto sin_theta = sqrt(1.0 - cos_theta * cos_theta);
 
         bool cannot_refract = ri * sin_theta > 1.0;
-        if (cannot_refract || reflectance(cos_theta, ri) > rand_double({})) {
+        if (cannot_refract || reflectance(cos_theta, ri) > rand_double({}, st)) {
             auto dir = rec.normal.reflect(v);
             return {{this->albedo, Ray(rec.point, dir)}};
         }
@@ -169,7 +169,7 @@ public:
         return {{this->albedo, Ray(rec.point, dir)}};
     }
 private:
-    static double reflectance(double cosine, double refraction_index) {
+    GPU_FUNC() static double reflectance(double cosine, double refraction_index) {
         // Use Schlick's approximation for reflectance.
         auto r0 = (1 - refraction_index) / (1 + refraction_index);
         r0 = r0*r0;

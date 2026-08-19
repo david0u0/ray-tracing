@@ -9,8 +9,10 @@ using namespace std;
 
 #ifdef CUDA
 #define CUDA_FUNC() __host__ __device__                                                 
+#define GPU_FUNC() __device__                                                 
 #else
 #define CUDA_FUNC()
+#define GPU_FUNC()
 #endif
 
 
@@ -48,12 +50,22 @@ CUDA_FUNC() inline double linear_to_gamma(double linear_component) {
     return 0;
 }
 
-CUDA_FUNC() double rand_double(my_optional<Interval> i) {
+#ifdef CUDA
+#include <curand_kernel.h>
+#else
+using curandState = int;
+#endif
+
+GPU_FUNC() double rand_double(my_optional<Interval> i, curandState *st) {
+#ifdef CUDA
+    return curand_uniform(st);
+#else
     auto r = rand() / (RAND_MAX + 1.0);
     if (!i.has_value()) {
         return r;
     }
     return i->min + (i->max - i->min) * r;
+#endif
 }
 
 class Vec3 {
@@ -138,8 +150,8 @@ public:
         return sqrt(length_squared());
     }
 
-    CUDA_FUNC() static Vec3 random(my_optional<Interval> i) {
-        return Vec3(rand_double(i), rand_double(i), rand_double(i));
+    GPU_FUNC() static Vec3 random(my_optional<Interval> i, curandState *st) {
+        return Vec3(rand_double(i, st), rand_double(i, st), rand_double(i, st));
     }
 
     CUDA_FUNC() bool near_zero() const {
@@ -179,9 +191,9 @@ void write_color(Vec3 &&color) {
     cout << ri << " " << gi << " " << bi << endl;
 }
 
-CUDA_FUNC() inline Vec3 random_unit_vector() {
+GPU_FUNC() inline Vec3 random_unit_vector(curandState *st) {
     while (true) {
-        auto p = Vec3::random({{-1, 1}});
+        auto p = Vec3::random({{-1, 1}}, st);
         auto lensq = p.length_squared();
         if (lensq <= 1 && lensq > 1e-160) {
             // QUESTION: why not just always return? What's wrong with having a distribution of cube instead of sphere?
@@ -194,9 +206,9 @@ CUDA_FUNC() Vec3 operator*(double t, const Vec3 v) {
     return { v.x() * t, v.y() * t, v.z() * t };
 }
 
-CUDA_FUNC() inline Vec3 random_in_unit_disk() {
+GPU_FUNC() inline Vec3 random_in_unit_disk(curandState *st) {
     while (true) {
-        auto p = Vec3(rand_double({{-1,1}}), rand_double({{-1,1}}), 0);
+        auto p = Vec3(rand_double({{-1,1}}, st), rand_double({{-1,1}}, st), 0);
         if (p.length_squared() < 1)
             return p;
     }

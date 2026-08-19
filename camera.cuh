@@ -72,11 +72,11 @@ public:
             for (int i = 0; i < width; i++) {
                 Vec3 color(0, 0, 0);
                 for (int _i = 0; _i < samp_size; _i++) {
-                    double off_x = rand_double({}) - 0.5;
-                    double off_y = rand_double({}) - 0.5;
+                    double off_x = rand_double({}, nullptr) - 0.5;
+                    double off_y = rand_double({}, nullptr) - 0.5;
                     auto origin = camera_center;
                     if (has_defocus) {
-                        auto t = random_in_unit_disk();
+                        auto t = random_in_unit_disk(nullptr);
                         origin = origin + defocus_disk_u * t.x() + defocus_disk_v * t.y();
                     }
                     auto pixel_center = pixel00_loc + (pixel_delta_u * (i + off_x)) + (pixel_delta_v * (j + off_y));
@@ -97,7 +97,7 @@ public:
 
         auto rec = world.hit(r, {0.001, INF}); // Fix shadow acne by ignoring too small a time
         if (rec.has_value()) {
-            auto scatter_rec = rec->mat->scatter(r, *rec);
+            auto scatter_rec = rec->mat->scatter(r, *rec, nullptr);
             if (!scatter_rec.has_value()) {
                 return {0, 0, 0};
             }
