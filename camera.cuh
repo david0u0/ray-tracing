@@ -37,7 +37,14 @@ public:
     int width;
     int height;
 
-    Camera(CamConfig conf): width(conf.width), camera_center(conf.camera_center) {
+    GPU_FUNC() void debug() {
+        printf("%d %d\n", width, height);
+        printf("%f %f %f\n", pixel00_loc.x(), pixel00_loc.y(), pixel00_loc.z());
+        printf("%f %f %f\n", pixel_delta_u.x(), pixel_delta_u.y(), pixel_delta_u.z());
+        printf("%f %f %f\n", pixel_delta_v.x(), pixel_delta_v.y(), pixel_delta_v.z());
+    }
+
+    GPU_FUNC() Camera(CamConfig conf): width(conf.width), camera_center(conf.camera_center) {
         samp_size = conf.samp_size;
         samp_scale = 1.0 / samp_size;
         max_depth = conf.max_depth;
@@ -67,47 +74,49 @@ public:
         }
     }
 
-    void render(const HittableList &world) const {
-        for (int j = 0; j < height; j++) {
-            for (int i = 0; i < width; i++) {
-                Vec3 color(0, 0, 0);
-                for (int _i = 0; _i < samp_size; _i++) {
-                    double off_x = rand_double({}, nullptr) - 0.5;
-                    double off_y = rand_double({}, nullptr) - 0.5;
-                    auto origin = camera_center;
-                    if (has_defocus) {
-                        auto t = random_in_unit_disk(nullptr);
-                        origin = origin + defocus_disk_u * t.x() + defocus_disk_v * t.y();
-                    }
-                    auto pixel_center = pixel00_loc + (pixel_delta_u * (i + off_x)) + (pixel_delta_v * (j + off_y));
-                    auto ray_dir = pixel_center - origin;
-                    Ray r(origin, ray_dir);
-                    auto cur_col = calc_ray_color(r, world, max_depth);
-                    color = color + cur_col;
-                }
-                write_color(color * samp_scale);
+    GPU_FUNC() Vec3 render(const HittableList &world, int x, int y, curandState *st) const {
+        Vec3 color(0, 0, 0);
+        auto local_st = *st;
+        for (int _i = 0; _i < samp_size; _i++) {
+            double off_x = rand_double({}, &local_st) - 0.5;
+            double off_y = rand_double({}, &local_st) - 0.5;
+            auto origin = camera_center;
+            if (has_defocus) {
+                auto t = random_in_unit_disk(&local_st);
+                origin = origin + defocus_disk_u * t.x() + defocus_disk_v * t.y();
             }
+            auto pixel_center = pixel00_loc + (pixel_delta_u * (x + off_x)) + (pixel_delta_v * (y + off_y));
+            auto ray_dir = pixel_center - origin;
+            Ray r(origin, ray_dir);
+            auto cur_col = calc_ray_color(r, world, st);
+            color = color + cur_col;
         }
+        return color * samp_scale;
     }
 
-    Vec3 calc_ray_color(const Ray &r, const HittableList &world, int depth) const {
-        if (depth == 0) {
-            return {0, 0, 0};
-        }
+    GPU_FUNC() Vec3 calc_ray_color(Ray cur_ray, const HittableList &world, curandState *st) const {
+        Vec3 cur_color = {1, 1, 1};
 
-        auto rec = world.hit(r, {0.001, INF}); // Fix shadow acne by ignoring too small a time
-        if (rec.has_value()) {
-            auto scatter_rec = rec->mat->scatter(r, *rec, nullptr);
-            if (!scatter_rec.has_value()) {
-                return {0, 0, 0};
+        for (int i = 0; i < max_depth; i++) {
+            auto rec = world.hit(cur_ray, {0.001, INF});
+            if (rec.has_value()) {
+                auto scatter_rec = rec->mat->scatter(cur_ray, *rec, st);
+                if (!scatter_rec.has_value()) {
+                    return {0, 0, 0};
+                }
+                cur_color = scatter_rec->attenuation * cur_color;
+                cur_ray = scatter_rec->ray;
+                continue;
             }
-            return calc_ray_color(scatter_rec->ray, world, depth - 1) * scatter_rec->attenuation;
+
+            Vec3 dir = cur_ray.dir;
+            Vec3 unit = dir / dir.length();
+            auto a = 0.5 * (unit.y() + 1.0);
+            auto bg_color = (1.0 - a) * Vec3{1.0, 1.0, 1.0} + Vec3{0.5, 0.7, 1.0} * a;
+            return cur_color * bg_color;
         }
 
-        Vec3 dir = r.dir;
-        Vec3 unit = dir / dir.length();
-        auto a = 0.5 * (unit.y() + 1.0);
-        return Vec3{1.0, 1.0, 1.0} * (1.0-a) + Vec3{0.5, 0.7, 1.0} * a;
+        return {0, 0, 0};
     }
 };
 

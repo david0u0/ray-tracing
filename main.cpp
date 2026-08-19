@@ -2,6 +2,7 @@
 #include "world.cuh"
 #include "common.cuh"
 
+#include <chrono>
 #include <iostream>
 #include <math.h>
 #include <cstdlib>
@@ -62,5 +63,9 @@ int main() {
     auto material3 = new Metal(Vec3{0.7, 0.6, 0.5}, 0.0);
     hit_list.add(new Sphere(Vec3{4, 1, 0}, 1.0, material3));
 
-    camera.render(hit_list);
+    for (int i = 0; i < camera.height; i++) {
+        for (int j = 0; j < camera.width; j++) {
+            write_color(camera.render(hit_list, j, i, 0));
+        }
+    }
 }
